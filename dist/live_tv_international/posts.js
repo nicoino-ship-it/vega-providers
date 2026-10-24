@@ -1,13 +1,4 @@
-/**
- * posts.ts
- * 
- * Récupère la liste des éléments (chaînes TV) pour une catégorie donnée
- * et gère la recherche textuelle.
- * 
- * Conforme au template officiel VEGA App :
- * - getPosts({ filter, page, providerValue, signal, providerContext }) → Promise<Post[]>
- * - getSearchPosts({ searchQuery, page, providerValue, signal, providerContext }) → Promise<Post[]>
- */
+
 
 const BASE_URL = "https://vavoo.to";
 const CATALOG_ENDPOINT = `${BASE_URL}/live/catalog/live/channels.json`;
