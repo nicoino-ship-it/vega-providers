@@ -1,0 +1,10 @@
+[
+  {
+    "display_name": "Live TV International",
+    "value": "live_tv_international",
+    "version": "1.0.0",
+    "icon": "https://img.icons8.com/color/452/pizza.png",
+    "type": "global",
+    "disabled": false
+  }
+]
