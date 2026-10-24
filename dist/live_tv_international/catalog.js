@@ -1,4 +1,8 @@
-
+/**
+ * catalog.js
+ * 
+ * Définit les catégories affichées sur la page d'accueil de VEGA.
+ */
 
 exports.catalog = [
   { title: "Live TV - France", filter: "France" },
