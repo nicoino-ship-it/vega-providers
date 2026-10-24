@@ -1,14 +1,4 @@
-/**
- * catalog.ts
- * 
- * Définit les catégories affichées sur la page d'accueil de VEGA.
- * 
- * - title : Libellé affiché dans l'interface
- * - filter : Valeur transmise à getPosts() pour récupérer les éléments
- * 
- * Conforme au template officiel VEGA App :
- * export const catalog = [{ title, filter }, ...]
- */
+
 
 exports.catalog = [
   { title: "Live TV - France", filter: "France" },
