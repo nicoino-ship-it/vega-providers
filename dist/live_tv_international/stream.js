@@ -1,19 +1,7 @@
 /**
- * stream.ts
+ * stream.js
  * 
  * Résout l'URL de lecture en flux vidéo jouable par le lecteur VEGA.
- * 
- * Conforme au template officiel VEGA App :
- * getStream({ link, type, signal, providerContext, isDownload }) → Promise<Stream[]>
- * 
- * Champs retournés : server, link, type, quality
- * 
- * Méthode principale : Endpoint /resolve officiel (protocole mHub v2)
- * L'addon serveur gère TOUT le mécanisme d'authentification :
- * handshake interne, génération du token dynamique, signature de l'URL.
- * 
- * Méthode de secours : Handshake manuel via vavoo.tv/api/box/ping2
- * Activé automatiquement si la méthode principale échoue.
  */
 
 const BASE_URL = "https://vavoo.to";
@@ -39,10 +27,14 @@ let signatureExpiry = 0;
 
 async function resolveViaMhubEndpoint(providerContext, playUrl, signal) {
   const { axios, commonHeaders } = providerContext;
+
   const resolveUrl = `${RESOLVE_ENDPOINT}?url=${encodeURIComponent(playUrl)}`;
 
   const response = await axios.get(resolveUrl, {
-    headers: { ...commonHeaders, Accept: "application/json" },
+    headers: {
+      ...commonHeaders,
+      Accept: "application/json",
+    },
     timeout: 20000,
     signal,
   });
@@ -64,7 +56,9 @@ async function getAuthSignature(providerContext, signal) {
 
   for (let attempt = 0; attempt < 10; attempt++) {
     try {
-      const vec = FALLBACK_VEC_LIST[Math.floor(Math.random() * FALLBACK_VEC_LIST.length)];
+      const vec =
+        FALLBACK_VEC_LIST[Math.floor(Math.random() * FALLBACK_VEC_LIST.length)];
+
       const body = new URLSearchParams();
       body.set("vec", vec);
 
@@ -78,7 +72,10 @@ async function getAuthSignature(providerContext, signal) {
       });
 
       const data = response.data;
-      const sig = data?.signed || data?.data?.signed || data?.response?.signed;
+      const sig =
+        data?.signed ||
+        data?.data?.signed ||
+        data?.response?.signed;
 
       if (sig && typeof sig === "string") {
         cachedSignature = sig;
@@ -108,47 +105,48 @@ async function resolveViaHandshakeFallback(providerContext, playUrl, signal) {
   return `https://vavoo.tv/live/${channelId}/index.m3u8?signed=${encodeURIComponent(signature)}`;
 }
 
-module.exports = {
-  getStream: async function ({
-    link,
-    type,
-    signal,
-    providerContext,
-    isDownload,
-  }) {
-    try {
-      if (!link) {
-        throw new Error("URL de lecture manquante");
-      }
-
-      let streamUrl;
-      let streamName;
-
-      try {
-        const resolved = await resolveViaMhubEndpoint(providerContext, link, signal);
-        streamUrl = resolved.url;
-        streamName = resolved.name;
-      } catch (resolveError) {
-        console.warn("[stream.js] Endpoint /resolve échoué, tentative fallback :", resolveError);
-        streamUrl = await resolveViaHandshakeFallback(providerContext, link, signal);
-      }
-
-      const streams = [
-        {
-          server: streamName ?? "Direct HLS",
-          link: streamUrl,
-          type: "m3u8",
-          quality: "HD",
-          headers: { ...STREAM_HEADERS },
-        },
-      ];
-
-      return streams;
-    } catch (error) {
-      console.error("[stream.js] ERREUR getStream :", error);
-      throw new Error(
-        `Résolution du flux impossible : ${error instanceof Error ? error.message : "Erreur inconnue"}`
-      );
+exports.getStream = async function ({
+  link,
+  type,
+  signal,
+  providerContext,
+  isDownload,
+}) {
+  try {
+    if (!link) {
+      throw new Error("URL de lecture manquante");
     }
+
+    let streamUrl;
+    let streamName;
+
+    try {
+      const resolved = await resolveViaMhubEndpoint(providerContext, link, signal);
+      streamUrl = resolved.url;
+      streamName = resolved.name;
+    } catch (resolveError) {
+      console.warn(
+        "[stream.js] Endpoint /resolve échoué, tentative fallback :",
+        resolveError
+      );
+      streamUrl = await resolveViaHandshakeFallback(providerContext, link, signal);
+    }
+
+    const streams = [
+      {
+        server: streamName ?? "Direct HLS",
+        link: streamUrl,
+        type: "m3u8",
+        quality: "HD",
+        headers: { ...STREAM_HEADERS },
+      },
+    ];
+
+    return streams;
+  } catch (error) {
+    console.error("[stream.js] ERREUR getStream :", error);
+    throw new Error(
+      `Résolution du flux impossible : ${error instanceof Error ? error.message : "Erreur inconnue"}`
+    );
   }
 };
