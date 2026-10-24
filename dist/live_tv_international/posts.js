@@ -1,4 +1,9 @@
-
+/**
+ * posts.js
+ * 
+ * Récupère la liste des éléments (chaînes TV) pour une catégorie donnée
+ * et gère la recherche textuelle.
+ */
 
 const BASE_URL = "https://vavoo.to";
 const CATALOG_ENDPOINT = `${BASE_URL}/live/catalog/live/channels.json`;
@@ -15,6 +20,7 @@ function buildLogoUrl(channelId, images) {
 
 function getCurrentEpg(epg) {
   if (!epg || epg.length === 0) return null;
+
   const now = Date.now();
   for (const program of epg) {
     try {
@@ -52,70 +58,77 @@ function mapToPost(item) {
   };
 }
 
-module.exports = {
-  getPosts: async function ({
-    filter,
-    page,
-    providerValue,
-    signal,
-    providerContext,
-  }) {
-    try {
-      const { axios, commonHeaders } = providerContext;
-      const params = new URLSearchParams();
-      params.set("filter[group]", filter);
-      params.set("sort", "trending");
+exports.getPosts = async function ({
+  filter,
+  page,
+  providerValue,
+  signal,
+  providerContext,
+}) {
+  try {
+    const { axios, commonHeaders } = providerContext;
 
-      const url = `${CATALOG_ENDPOINT}?${params.toString()}`;
-      const response = await axios.get(url, {
-        headers: { ...commonHeaders, Accept: "application/json" },
-        timeout: 15000,
-        signal,
-      });
+    const params = new URLSearchParams();
+    params.set("filter[group]", filter);
+    params.set("sort", "trending");
 
-      if (!response.data?.items || !Array.isArray(response.data.items)) {
-        return [];
-      }
+    const url = `${CATALOG_ENDPOINT}?${params.toString()}`;
 
-      return response.data.items.map(mapToPost);
-    } catch (error) {
-      console.error("[posts.js] getPosts error:", error);
+    const response = await axios.get(url, {
+      headers: {
+        ...commonHeaders,
+        Accept: "application/json",
+      },
+      timeout: 15000,
+      signal,
+    });
+
+    if (!response.data?.items || !Array.isArray(response.data.items)) {
       return [];
     }
-  },
 
-  getSearchPosts: async function ({
-    searchQuery,
-    page,
-    providerValue,
-    signal,
-    providerContext,
-  }) {
-    try {
-      const { axios, commonHeaders } = providerContext;
+    return response.data.items.map(mapToPost);
+  } catch (error) {
+    console.error("[posts.js] getPosts error:", error);
+    return [];
+  }
+};
 
-      if (!searchQuery || searchQuery.trim().length === 0) {
-        return [];
-      }
+exports.getSearchPosts = async function ({
+  searchQuery,
+  page,
+  providerValue,
+  signal,
+  providerContext,
+}) {
+  try {
+    const { axios, commonHeaders } = providerContext;
 
-      const params = new URLSearchParams();
-      params.set("search", searchQuery.trim());
-
-      const url = `${CATALOG_ENDPOINT}?${params.toString()}`;
-      const response = await axios.get(url, {
-        headers: { ...commonHeaders, Accept: "application/json" },
-        timeout: 15000,
-        signal,
-      });
-
-      if (!response.data?.items || !Array.isArray(response.data.items)) {
-        return [];
-      }
-
-      return response.data.items.map(mapToPost);
-    } catch (error) {
-      console.error("[posts.js] getSearchPosts error:", error);
+    if (!searchQuery || searchQuery.trim().length === 0) {
       return [];
     }
+
+    const params = new URLSearchParams();
+    params.set("search", searchQuery.trim());
+
+    const url = `${CATALOG_ENDPOINT}?${params.toString()}`;
+
+    const response = await axios.get(url, {
+      headers: {
+        ...commonHeaders,
+        Accept: "application/json",
+      },
+      timeout: 15000,
+      signal,
+    });
+
+    if (!response.data?.items || !Array.isArray(response.data.items)) {
+      return [];
+    }
+
+    return response.data.items.map(mapToPost);
+  } catch (error) {
+    console.error("[posts.js] getSearchPosts error:", error);
+    return [];
   }
 };
