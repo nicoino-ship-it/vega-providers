@@ -56,13 +56,21 @@ const STREAM_HEADERS: Record<string, string> = {
 };
 
 /**
- * Extrait le tmdbId depuis le lien encodé
- * Format : https://net79.cc/watch/{tmdbId}?type={type}
+ * Extrait le tmdbId depuis le lien — PLUS ROBUSTE
+ * Essaye plusieurs patterns pour être compatible avec différents formats
  */
 function extractTmdbId(link: string): string | null {
   if (!link) return null;
-  const match = link.match(/\/watch\/(\d+)/);
-  return match ? match[1] : null;
+
+  // Pattern 1 : format officiel du provider → /watch/{tmdbId}
+  let match = link.match(/\/watch\/(\d+)/);
+  if (match) return match[1];
+
+  // Pattern 2 : extraire juste une séquence de chiffres (fallback)
+  match = link.match(/(\d{4,})/);
+  if (match) return match[1];
+
+  return null;
 }
 
 /**
@@ -112,7 +120,7 @@ export const getStream = async function ({
     const tmdbId = extractTmdbId(link);
 
     if (!tmdbId) {
-      throw new Error(`Impossible d'extraire l'ID depuis : ${link}`);
+      throw new Error(`[Net79] Lien invalide — impossible d'identifier le contenu`);
     }
 
     // Appel à l'endpoint embed-tmdb pour obtenir les URLs signées
@@ -130,13 +138,13 @@ export const getStream = async function ({
     const data = response.data;
 
     if (!data?.ok) {
-      throw new Error("Réponse API invalide");
+      throw new Error("[Net79] Réponse du serveur invalide");
     }
 
+    // ⚠️ Cas où le contenu n'est pas encore disponible sur la plateforme
     if (data.noSource) {
-      throw new Error(
-        data.error || "Ce titre n'est pas encore disponible en streaming."
-      );
+      const msg = data.error || "Ce titre n'est pas encore disponible sur Net79.";
+      throw new Error(`⚠️ ${msg} — Essayez un autre film.`);
     }
 
     const streams: Stream[] = [];
@@ -147,7 +155,7 @@ export const getStream = async function ({
 
       for (const s of sorted) {
         streams.push({
-          server: `Net79 — ${s.resolution}p`,
+          server: `Net79 ${s.resolution}p`,
           link: s.url,
           type: "mp4",
           quality: String(s.resolution),
@@ -161,7 +169,7 @@ export const getStream = async function ({
       const alreadyIncluded = streams.some((s) => s.link === data.mp4);
       if (!alreadyIncluded) {
         streams.push({
-          server: `Net79 — ${data.resolution || "default"}`,
+          server: `Net79 ${data.resolution || "Default"}`,
           link: data.mp4,
           type: "mp4",
           quality: data.resolution || "720",
@@ -177,7 +185,7 @@ export const getStream = async function ({
         : `${BASE_URL}${data.fallbackHls}`;
 
       streams.push({
-        server: "Net79 — HLS Fallback",
+        server: "Net79 HLS",
         link: fallbackUrl,
         type: "m3u8",
         quality: "Auto",
@@ -186,14 +194,23 @@ export const getStream = async function ({
     }
 
     if (streams.length === 0) {
-      throw new Error("Aucune source de streaming disponible pour ce titre.");
+      throw new Error(
+        "[Net79] Aucune source vidéo trouvée pour ce titre. Essayez-en un autre."
+      );
     }
 
     return streams;
   } catch (error) {
     console.error("[net79][stream.ts] getStream error:", error);
-    throw new Error(
-      `[Net79] Impossible de résoudre le flux : ${error instanceof Error ? error.message : "Erreur inconnue"}`
-    );
+
+    // Relancer l'erreur avec un message clair pour VEGA
+    const message =
+      error instanceof Error
+        ? error.message.startsWith("[Net79]")
+          ? error.message
+          : `[Net79] ${error.message}`
+        : "[Net79] Erreur inconnue";
+
+    throw new Error(message);
   }
 };

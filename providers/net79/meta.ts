@@ -108,9 +108,15 @@ export const getMeta = async function ({
       synopsisParts.push(`🎬 IMDB : ${data.imdb}`);
     }
 
-    // Disponibilité du streaming
+    // Disponibilité du streaming — EN TÊTE D'AFFICHE
     if (data.noSource) {
-      synopsisParts.push(`\n⚠️ ${data.error || "Ce titre n'est pas encore disponible en streaming."}`);
+      synopsisParts.unshift(
+        `⚠️ PAS ENCORE DISPONIBLE EN STREAMING`
+      );
+      synopsisParts.push(
+        `\n💡 Ce titre est trop récent ou n'a pas encore été ajouté.`
+      );
+      synopsisParts.push(`👉 Essaye un film plus ancien (ex: The Dark Knight, Pulp Fiction).`);
     } else {
       const resolutions: string[] = [];
       if (data.streams && Array.isArray(data.streams)) {
@@ -121,9 +127,9 @@ export const getMeta = async function ({
         resolutions.push(`${data.resolution}p`);
       }
       if (resolutions.length > 0) {
-        synopsisParts.push(`\n✅ Disponible en streaming — Qualités : ${resolutions.join(", ")}`);
+        synopsisParts.unshift(`✅ DISPONIBLE — ${resolutions.join(" / ")}`);
       } else {
-        synopsisParts.push(`\n✅ Disponible en streaming`);
+        synopsisParts.unshift(`✅ DISPONIBLE EN STREAMING`);
       }
     }
 
