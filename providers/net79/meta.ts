@@ -1,10 +1,6 @@
 /**
- * meta.ts
- * 
- * Récupère les métadonnées détaillées d'un film ou d'une série.
- * 
- * Point clé : retourne linkList avec directLinks pour que VEGA
- * affiche un bouton "Lire" au lieu d'un menu déroulant vide.
+ * meta.ts — VERSION DEBUG ULTIME
+ * Affiche TOUT dans le synopsis pour diagnostiquer
  */
 
 import { Info, ProviderContext } from "../types";
@@ -19,19 +15,10 @@ interface EmbedResponse {
   imdb?: string;
   type: string;
   poster?: string;
-  currentSeason?: number;
-  currentEpisode?: number;
   streams?: Array<{ url: string; resolution: number; size: number }>;
   mp4?: string;
-  resolution?: string;
   noSource?: boolean;
   error?: string;
-}
-
-function extractTmdbId(link: string): string | null {
-  if (!link) return null;
-  const m = link.match(/\/watch\/(\d+)/) || link.match(/(\d{4,})/);
-  return m ? m[1] : null;
 }
 
 export const getMeta = async function ({
@@ -41,85 +28,106 @@ export const getMeta = async function ({
   link: string;
   providerContext: ProviderContext;
 }): Promise<Info> {
+  const debug: string[] = [];
+  debug.push("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  debug.push("🔍 DIAGNOSTIC NET79");
+  debug.push("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  debug.push(`1. Lien reçu: "${link}"`);
+  debug.push(`   Longueur: ${link.length} caractères`);
+
+  // Essaye TOUS les patterns d'extraction
+  const patterns: { name: string; regex: RegExp }[] = [
+    { name: "/watch/{id}", regex: /\/watch\/(\d+)/ },
+    { name: "/title/{id}", regex: /\/title\/(\d+)/ },
+    { name: "/movie/{id}", regex: /\/movie\/(\d+)/ },
+    { name: "/tv/{id}", regex: /\/tv\/(\d+)/ },
+    { name: "chiffres seuls", regex: /(\d{4,})/ },
+  ];
+
+  let tmdbId: string | null = null;
+  let methodUsed = "aucun";
+  for (const p of patterns) {
+    const m = link.match(p.regex);
+    if (m) {
+      debug.push(`2. Pattern "${p.name}" → ID: ${m[1]}`);
+      if (!tmdbId) {
+        tmdbId = m[1];
+        methodUsed = p.name;
+      }
+    } else {
+      debug.push(`2. Pattern "${p.name}" → ÉCHEC`);
+    }
+  }
+
+  if (!tmdbId) {
+    return {
+      title: "❌ DEBUG — AUCUN ID TROUVÉ",
+      synopsis: debug.join("\n"),
+      type: "movie",
+      linkList: [{ title: "Lecture", directLinks: [{ link, title: "Lire", type: "movie" }] }],
+      link,
+    };
+  }
+
+  debug.push(`3. ID utilisé: ${tmdbId} (via: ${methodUsed})`);
+
   try {
-    const { axios, commonHeaders } = providerContext;
+    const { axios } = providerContext;
 
-    const tmdbId = extractTmdbId(link);
-    if (!tmdbId) throw new Error("ID introuvable");
+    debug.push(`4. Appel API: /api/embed-tmdb/${tmdbId}`);
 
+    // Test SANS commonHeaders d'abord
     const response = await axios.get<EmbedResponse>(
       `${BASE_URL}/api/embed-tmdb/${tmdbId}`,
       {
-        headers: { ...commonHeaders, Accept: "application/json" },
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          "Accept": "application/json",
+          "Referer": "https://net79.cc/",
+        },
         timeout: 15000,
       }
     );
 
     const data = response.data;
-    if (!data?.ok) throw new Error("API invalide");
+    debug.push(`5. API répond: ok=${data.ok}`);
+    debug.push(`6. Titre API: "${data.title}"`);
+    debug.push(`7. noSource: ${data.noSource ?? "false"}`);
+    debug.push(`8. Streams: ${data.streams?.length ?? 0}`);
+    debug.push(`9. MP4: ${data.mp4 ? "OUI" : "NON"}`);
 
-    // Construction du synopsis
-    const synopsisParts: string[] = [];
-    const typeTag = data.type === "movie" ? "🎬 Film" : data.type === "tv" ? "📺 Série" : `📁 ${data.type}`;
-    const yearTag = data.year ? `📅 ${data.year}` : "";
-    synopsisParts.push([typeTag, yearTag].filter(Boolean).join(" • "));
+    if (data.error) debug.push(`10. Erreur API: ${data.error}`);
 
-    if (data.imdb) synopsisParts.push(`🎬 IMDB : ${data.imdb}`);
-
-    // Disponibilité
+    // Statut final
     if (data.noSource) {
-      synopsisParts.unshift("⚠️ PAS ENCORE DISPONIBLE");
-      synopsisParts.push("💡 Ce titre est trop récent ou n'a pas encore été ajouté.");
+      debug.unshift("⚠️ API dit: PAS DISPONIBLE");
+    } else if (data.streams?.length || data.mp4) {
+      debug.unshift("✅ API dit: DISPONIBLE");
     } else {
-      const resos = data.streams?.map((s) => `${s.resolution}p`).join(" / ") || data.resolution || "";
-      synopsisParts.unshift(resos ? `✅ DISPONIBLE — ${resos}` : "✅ DISPONIBLE");
+      debug.unshift("❓ API dit: OK mais pas de flux");
     }
 
-    // ⭐ SOLUTION : linkList avec directLinks
-    // Comme ça VEGA affiche "Lire" et appelle getStream avec le bon lien
-    const linkList = [
-      {
-        title: data.type === "tv" ? "Saison 1" : "Lecture",
-        directLinks: [
-          {
-            link: link,
-            title: data.type === "tv" ? "Épisode 1" : "Lire le film",
-            type: data.type === "tv" ? "series" : "movie",
-          },
-        ],
-        quality: data.resolution || "720",
-      },
-    ];
-
     return {
-      title: data.title,
-      synopsis: synopsisParts.join("\n"),
+      title: data.title || `DEBUG — tmdb ${tmdbId}`,
+      synopsis: debug.join("\n"),
       image: data.poster,
       imdbId: data.imdb,
       type: data.type,
-      linkList: linkList,
-      link: link,
-      extra: {
-        tmdbId: data.tmdbId,
-        noSource: data.noSource ?? false,
-        hasStreams: !!(data.streams && data.streams.length > 0),
-      },
+      linkList: [{
+        title: data.type === "tv" ? "Saison 1" : "Lecture",
+        directLinks: [{ link, title: data.type === "tv" ? "Épisode 1" : "Lire", type: data.type === "tv" ? "series" : "movie" }],
+        quality: data.resolution || "720",
+      }],
+      link,
     };
-  } catch (error) {
-    console.error("[net79][meta.ts] error:", error);
-
-    // Même en cas d'erreur, retourner un linkList pour que VEGA affiche quelque chose
+  } catch (err) {
+    debug.push(`❌ ERREUR: ${err instanceof Error ? err.message : String(err)}`);
     return {
-      title: "Contenu",
-      synopsis: "Métadonnées temporairement indisponibles.",
+      title: "❌ DEBUG ERREUR",
+      synopsis: debug.join("\n"),
       type: "movie",
-      linkList: [
-        {
-          title: "Lecture",
-          directLinks: [{ link: link, title: "Lire", type: "movie" }],
-        },
-      ],
-      link: link,
+      linkList: [{ title: "Lecture", directLinks: [{ link, title: "Lire", type: "movie" }] }],
+      link,
     };
   }
 };
